@@ -1,24 +1,19 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:math';
-import 'dart:ui';
 
+import 'package:benchapp/enums.dart';
+import 'package:core/executer.dart';
+import 'package:core/time_tracker.dart';
 import 'package:flutter/material.dart';
-import 'package:path/path.dart' as path;
+import 'package:hivedb/src/executor_creator.dart' as hive;
+import 'package:isardb/executor_creator.dart' as isar_sync;
+import 'package:objectboxdb/obx_executor.dart' as obx;
 import 'package:path_provider/path_provider.dart';
 
-import 'executor.dart';
-import 'hive_executor.dart' as hive;
-import 'isar_sync_executor.dart' as isar_sync;
-import 'model.dart';
-import 'obx_executor.dart' as obx;
-import 'sqf_executor.dart' as sqf;
-
-// import 'hive_lazy_executor.dart' as hive_lazy;
-// import 'cf_executor.dart' as cf;
-import 'time_tracker.dart';
-
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+
   runApp(MyApp());
 }
 
@@ -67,41 +62,47 @@ class MyHomePage extends StatefulWidget {
   _MyHomePageState createState() => _MyHomePageState();
 }
 
-enum DbEngine { ObjectBox, sqflite, Hive, IsarSync }
-
-enum Mode { CRUD, Queries, QueryById }
-
-enum RunState { idle, running, stopping }
-
 class _MyHomePageState extends State<MyHomePage> {
-  var _db = DbEngine.ObjectBox;
+  var _db = DbEngine.IsarSync;
   var _mode = Mode.CRUD;
   var _indexed = false;
   final _objectsController = TextEditingController(text: '10000');
   final _runsController = TextEditingController(text: '10');
   final _operationsController = TextEditingController(text: '1000');
   final _resultsController = TextEditingController(text: '10000');
-  late final TimeTracker _tracker = TimeTracker(_print);
+  late final TimeTracker _tracker = TimeTracker(_xprint);
   final appDir = Completer<Directory>();
 
   var _result = '';
-  final _resultRows = <TableRow>[];
+  final _resultRows = <MapEntry<String, List<TableRow>>>[];
   RunState _state = RunState.idle;
 
-  void _print(List<String> columns) {
+  MapEntry<String, String> _print(List<String> columns) {
+    return MapEntry(columns[0], columns[1]);
+  }
+
+  void _xprint(List<MapEntry<String, String>> rows) {
     setState(() {
-      final cols = <Widget>[];
-      for (var i = 0; i < columns.length; i++) {
-        cols.add(Text(columns[i],
-            softWrap: false,
-            style: TextStyle(
-                fontSize: 20,
-                fontWeight: (_resultRows.isEmpty || columns[i] == 'Count')
-                    ? FontWeight.bold
-                    : FontWeight.normal),
-            textAlign: i == 0 ? TextAlign.left : TextAlign.right));
+      final rowsList = <TableRow>[];
+      for (var i = 0; i < rows.length; i++) {
+        final row = TableRow(children: [
+          Text(rows[i].key,
+              softWrap: false,
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.normal),
+              textAlign: TextAlign.left),
+          Text(rows[i].value,
+              softWrap: false,
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.normal),
+              textAlign: TextAlign.right),
+        ]);
+        rowsList.add(row);
       }
-      _resultRows.add(TableRow(children: cols));
+
+      _resultRows.add(MapEntry(
+          '${_db.name}-${_mode.name}-'
+          'Runs:${_runsController.text}--Obj:${_objectsController.text}'
+          '-Indexed:${indexed.toString()}',
+          rowsList));
     });
   }
 
@@ -110,7 +111,7 @@ class _MyHomePageState extends State<MyHomePage> {
         _mode = mode;
         _indexed = indexed;
         _result = '';
-        _resultRows.clear();
+        // _resultRows.clear();
       });
 
   @override
@@ -119,22 +120,17 @@ class _MyHomePageState extends State<MyHomePage> {
     getApplicationDocumentsDirectory().then(appDir.complete);
   }
 
-  Future<ExecutorBase<T>> _createExecutor<T extends TestEntity>(
-      Directory dbDir) async {
+  Future<ExecutorBase> _createExecutor(Directory dbDir) async {
     switch (_db) {
       case DbEngine.ObjectBox:
-        return Future.value(obx.Executor<T>(dbDir, _tracker));
-      case DbEngine.sqflite:
-        return sqf.Executor.create<T>(
-            Directory(path.join(dbDir.path, 'bench.db')), _tracker);
+        return Future.value(obx.createExecutor(indexed, dbDir, _tracker));
+      // case DbEngine.sqflite:
+      //   return sqf.Executor.create<T>(
+      //       Directory(path.join(dbDir.path, 'bench.db')), _tracker);
       case DbEngine.Hive:
-        return hive.Executor.create<T>(dbDir, _tracker);
+        return hive.createExecutor(dbDir, _tracker);
       case DbEngine.IsarSync:
-        return isar_sync.Executor.create<T>(dbDir, _tracker);
-      // case 4:
-      //   return hive_lazy.Executor.create<T>(dbDir, _tracker);
-      // case 5:
-      //   return cf.Executor.create<T>(dbDir, _tracker);
+        return isar_sync.createExecutor(indexed, dbDir, _tracker);
       default:
         throw Exception('Unknown executor');
     }
@@ -150,7 +146,7 @@ class _MyHomePageState extends State<MyHomePage> {
   void _runBenchmark() async {
     setState(() {
       _result = 'Benchmark starting...';
-      _resultRows.clear();
+      // _resultRows.clear();
       _state = RunState.running;
     });
 
@@ -161,9 +157,9 @@ class _MyHomePageState extends State<MyHomePage> {
     ExecutorBase? executor;
     try {
       if (indexed) {
-        executor = await _createExecutor<TestEntityIndexed>(dbDir);
+        executor = await _createExecutor(dbDir);
       } else {
-        executor = await _createExecutor<TestEntityPlain>(dbDir);
+        executor = await _createExecutor(dbDir);
       }
       await _runBenchmarkOn(executor);
     } finally {
@@ -246,11 +242,13 @@ class _MyHomePageState extends State<MyHomePage> {
           // About 9 sources have the same target
           // Ensure target count is uneven to not align with odd/even int values.
           final targetCount = objectsCount ~/ 10;
-          final relTargetsCount = max(1, targetCount.isEven ? targetCount - 1 : targetCount);
+          final relTargetsCount =
+              max(1, targetCount.isEven ? targetCount - 1 : targetCount);
           await relBench.insertData(objectsCount, relTargetsCount);
           final distinctSourceStrings =
               ExecutorBaseRel.distinctSourceStrings(objectsCount);
-          debugPrint("source groups = $distinctSourceStrings, targets = $relTargetsCount");
+          debugPrint(
+              "source groups = $distinctSourceStrings, targets = $relTargetsCount");
 
           final resultCounts = List<int>.filled(3, -1);
 
@@ -262,18 +260,13 @@ class _MyHomePageState extends State<MyHomePage> {
                 await bench.queryStringEquals(qStringValues);
             assert(qStringMatching.length == 1);
 
-            final qLinkConfigs = List.generate(
-                operationsCount,
-                (_) {
-                  // Ensures 5-6 results (depending on how many int condition filters).
-                  // Also see prepareDataSources function in executor.
-                  final number = random.nextInt(distinctSourceStrings);
-                  return ConfigQueryWithLinks(
-                    'Source group #$number',
-                      random.nextInt(2),
-                      'Target #$number');
-                },
-                growable: false);
+            final qLinkConfigs = List.generate(operationsCount, (_) {
+              // Ensures 5-6 results (depending on how many int condition filters).
+              // Also see prepareDataSources function in executor.
+              final number = random.nextInt(distinctSourceStrings);
+              return ConfigQueryWithLinks('Source group #$number',
+                  random.nextInt(2), 'Target #$number');
+            }, growable: false);
             final relResults = await relBench.queryWithLinks(qLinkConfigs);
             RangeError.checkValueInInterval(
                 relResults.length, 5, 6, 'queryWithLinks results length');
@@ -289,12 +282,14 @@ class _MyHomePageState extends State<MyHomePage> {
               'queryStringEquals',
               'queryWithLinks',
             ]);
-
-            _print(<String>['', '']);
-            _print(<String>['', 'Count']);
-            _print(<String>['queryStringEquals', resultCounts[0].toString()]);
-            _print(<String>['queryWithLinks', resultCounts[1].toString()]);
-
+            final x = <MapEntry<String, String>>[];
+            x.add(_print(['', '']));
+            x.add(_print(<String>['', 'Count']));
+            x.add(_print(
+                <String>['queryStringEquals', resultCounts[0].toString()]));
+            x.add(
+                _print(<String>['queryWithLinks', resultCounts[1].toString()]));
+            _xprint(x);
             // just so that the test after benchmarks passes
             await bench.removeMany(inserts.map((e) => e.id).toList());
           }
@@ -316,7 +311,8 @@ class _MyHomePageState extends State<MyHomePage> {
 
           final randomSlice = (List<int> list, int length) {
             final start = list.length == length
-                ? 0 : random.nextInt(list.length - length);
+                ? 0
+                : random.nextInt(list.length - length);
             final result = list.sublist(start, start + length);
             assert(result.length == length);
             return result;
@@ -324,13 +320,12 @@ class _MyHomePageState extends State<MyHomePage> {
 
           int resultCount = 0;
           for (var i = 0; i < runs && _state == RunState.running; i++) {
-            final idsShuffled = (ids.toList(growable: false))
-              ..shuffle(random);
+            final idsShuffled = (ids.toList(growable: false))..shuffle(random);
             final randomSliceLength = min(ids.length, resultsCount);
             final qByIdItems = await bench.queryById(
                 randomSlice(idsShuffled, randomSliceLength), '(random)');
             final qByIdItems2 =
-            await bench.queryById(randomSlice(ids, randomSliceLength));
+                await bench.queryById(randomSlice(ids, randomSliceLength));
             assert(qByIdItems.length == qByIdItems2.length);
 
             await printResult('$_mode: ${i + 1}/$runs finished');
@@ -344,9 +339,11 @@ class _MyHomePageState extends State<MyHomePage> {
               'queryById(random)',
             ]);
 
-            _print(<String>['', '']);
-            _print(<String>['', 'Count']);
-            _print(<String>['queryById', resultCount.toString()]);
+            _xprint([
+              _print(<String>['', '']),
+              _print(<String>['', 'Count']),
+              _print(<String>['queryById', resultCount.toString()])
+            ]);
 
             // just so that the test after benchmarks passes
             await bench.removeMany(inserts.map((e) => e.id).toList());
@@ -354,7 +351,8 @@ class _MyHomePageState extends State<MyHomePage> {
 
           break;
       }
-    } catch (e) {
+    } catch (e, s) {
+      debugPrint('$e $s', wrapWidth: 9000);
       setState(() {
         _result = "Benchmark failed: $e";
         _state = RunState.idle;
@@ -368,7 +366,7 @@ class _MyHomePageState extends State<MyHomePage> {
     if (_state == RunState.stopping) {
       setState(() {
         _result = 'Benchmark stopped';
-        _resultRows.clear();
+        // _resultRows.clear();
       });
     }
 
@@ -395,6 +393,7 @@ class _MyHomePageState extends State<MyHomePage> {
 
   @override
   Widget build(BuildContext context) {
+    print('xx table row ${_resultRows.length}');
     // This method is rerun every time setState is called, for instance as done
     // by the _incrementCounter method above.
     //
@@ -475,12 +474,12 @@ class _MyHomePageState extends State<MyHomePage> {
               if (_mode == Mode.QueryById)
                 Expanded(
                     child: TextField(
-                      keyboardType: TextInputType.number,
-                      controller: _resultsController,
-                      decoration: InputDecoration(
-                        labelText: 'Results',
-                      ),
-                    )),
+                  keyboardType: TextInputType.number,
+                  controller: _resultsController,
+                  decoration: InputDecoration(
+                    labelText: 'Results',
+                  ),
+                )),
               Spacer(),
               Expanded(
                   child: TextField(
@@ -495,13 +494,38 @@ class _MyHomePageState extends State<MyHomePage> {
             Spacer(),
             Text(_result),
             Spacer(),
-            Container(
-                padding: EdgeInsets.symmetric(horizontal: 30),
-                child: Table(
-                    border: TableBorder(
-                        horizontalInside:
-                            BorderSide(color: const Color(0x55000000))),
-                    children: _resultRows)),
+            ListView.separated(
+              reverse: true,
+              shrinkWrap: true,
+              separatorBuilder: (_, __) {
+                return Divider();
+              },
+              itemBuilder: (_, index) {
+                final table = _resultRows[index];
+                return Container(
+                    padding: EdgeInsets.symmetric(horizontal: 30)
+                        .copyWith(bottom: 30),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          table.key,
+                          softWrap: false,
+                          style: TextStyle(
+                              fontSize: 20, fontWeight: FontWeight.bold),
+                          textAlign: TextAlign.center,
+                        ),
+                        Table(
+                            border: TableBorder(
+                                horizontalInside:
+                                    BorderSide(color: const Color(0x55000000))),
+                            children: table.value)
+                      ],
+                    ));
+              },
+              itemCount: _resultRows.length,
+            ),
             Spacer(),
           ],
         )),

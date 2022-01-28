@@ -1,7 +1,7 @@
 class TimeTracker {
   /// list of runtimes indexed by function name
   final _times = <String, List<Duration>>{};
-  final void Function(List<String>) outputFn;
+  final void Function(List<MapEntry<String, String>> args) outputFn;
 
   TimeTracker(this.outputFn);
 
@@ -43,30 +43,48 @@ class TimeTracker {
     return result;
   }
 
-  void _print(List<dynamic> varArgs) =>
-      outputFn(varArgs.map((e) => e.toString()).toList());
-
+  // void _print(List<dynamic> varArgs) =>
+  //     outputFn(varArgs.map((e) => e.toString()).toList());
   void printTimes({List<String>? functions, bool avgOnly = false}) {
     functions ??= _times.keys.toList();
 
     // print the data as tab-separated a table
-    _print(avgOnly
-        ? ['Function', 'Average ms']
-        : ['Function', 'Runs', 'Average ms', 'All times']);
-
+    final result = <MapEntry<String, String>>[];
+    result.add(const MapEntry('Function', 'Average ms'));
+    double totalAvg = 0;
     for (final fn in functions) {
       // Sub-millisecond values are within measurement error,
       // but show at least 1 decimal.
-      final avg = averageMs(fn).toStringAsFixed(1);
-      if (avgOnly) {
-        _print([fn, avg]);
-      } else {
-        final timesCols =
-            _times[fn]?.map((d) => d.inMicroseconds.toDouble() / 1000) ?? [];
-        _print([fn, _count(fn), avg, ...timesCols]);
-      }
+      final avg = averageMs(fn);
+      totalAvg += avg;
+      result.add(MapEntry(fn, avg.toStringAsFixed(1)));
     }
+    result.add(MapEntry('All', totalAvg.toStringAsFixed(1)));
+
+    outputFn(result);
+    return;
   }
+  // void printTimes({List<String>? functions, bool avgOnly = false}) {
+  //   functions ??= _times.keys.toList();
+  //
+  //   // print the data as tab-separated a table
+  //   _print(avgOnly
+  //       ? ['Function', 'Average ms']
+  //       : ['Function', 'Runs', 'Average ms', 'All times']);
+  //
+  //   for (final fn in functions) {
+  //     // Sub-millisecond values are within measurement error,
+  //     // but show at least 1 decimal.
+  //     final avg = averageMs(fn).toStringAsFixed(1);
+  //     if (avgOnly) {
+  //       _print([fn, avg]);
+  //     } else {
+  //       final timesCols =
+  //           _times[fn]?.map((d) => d.inMicroseconds.toDouble() / 1000) ?? [];
+  //       _print([fn, _count(fn), avg, ...timesCols]);
+  //     }
+  //   }
+  // }
 
   int _count(String fn) => _times[fn]?.length ?? 0;
 

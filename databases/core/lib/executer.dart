@@ -21,14 +21,11 @@ abstract class ExecutorBase<T extends TestEntity> {
 
   Future<void> close();
 
-  bool get indexed => T == TestEntityIndexed;
-
-  List<T> prepareData(int count) => List.generate(
-      count,
-      (i) => indexed
-          ? TestEntityIndexed(0, 'Entity #$i', i, i, i.toDouble()) as T
-          : TestEntityPlain(0, 'Entity #$i', i, i, i.toDouble()) as T,
-      growable: false);
+  T generateItem(int i);
+//    ? TestEntityIndexed(0, 'Entity #$i', i, i, i.toDouble()) as T
+//           : TestEntityPlain(0, 'Entity #$i', i, i, i.toDouble()) as T,
+  List<T> prepareData(int count) =>
+      List.generate(count, (i) => generateItem(i), growable: false);
 
   void changeValues(List<T> items) => items.forEach((item) => item.tLong *= 2);
 
@@ -57,7 +54,7 @@ abstract class ExecutorBase<T extends TestEntity> {
             RangeError.checkValueInInterval(list.length, count, count, message);
 
         final inserts = prepareData(count);
-        await insertMany(inserts);
+        await insertMany(inserts as List<T>);
 
         final ids = inserts.map((e) => e.id).toList(growable: false);
         checkCount('insertMany assigns ids', ids.toSet(), count);
@@ -86,14 +83,13 @@ abstract class ExecutorBase<T extends TestEntity> {
 }
 
 /// Benchmark executor base class for relations tests
-abstract class ExecutorBaseRel<T extends RelSourceEntity> {
+abstract class ExecutorBaseRel<T extends RelSourceEntity,
+    S extends EntityWithSettableId> {
   final TimeTracker tracker;
 
   ExecutorBaseRel(this.tracker);
 
   Future<void> close();
-
-  bool get indexed => T == RelSourceEntityIndexed;
 
   /// About 100 sources have the same group so group query condition
   /// returns about 100 results regardless of source object count.
@@ -108,7 +104,9 @@ abstract class ExecutorBaseRel<T extends RelSourceEntity> {
   /// The int is 0 or 1 based on the source index being even or odd.
   /// So the block length = targets.length should be odd to make sure
   /// every other block has a different int + group + target combination.
-  List<T> prepareDataSources(int count, List<RelTargetEntity> targets) =>
+
+  T generateItem(String tString, int i2, dynamic target);
+  List<T> prepareDataSources(int count, List<S> targets) =>
       List.generate(count, (i) {
         // Start source group number at 0 again if multiple
         // of target.length (= next block) reached to ensure
@@ -117,15 +115,15 @@ abstract class ExecutorBaseRel<T extends RelSourceEntity> {
         final string = 'Source group #$groupNumber';
         final target = targets[i % targets.length];
         // Every other source has int 0 or 1
-        return indexed
-            ? RelSourceEntityIndexed.forInsert(string, i % 2, target) as T
-            : RelSourceEntityPlain.forInsert(string, i % 2, target) as T;
+        return generateItem(string, i % 2, target);
       }, growable: false);
 
-  List<RelTargetEntity> prepareDataTargets(int count) =>
-      List.generate(count, (i) => RelTargetEntity(0, 'Target #$i'),
-          growable: false);
-
+  List<S> prepareDataTargets(int count) => List.generate(
+      count,
+      (i) =>
+          generateTarget(0, 'Target #$i'), // RelTargetEntity(0, 'Target #$i'),
+      growable: false);
+  S generateTarget(int id, String name);
   Future<void> insertData(int relSourceCount, int relTargetCount);
 
   Future<List<T>> queryWithLinks(List<ConfigQueryWithLinks> args) =>

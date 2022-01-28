@@ -1,51 +1,18 @@
-import 'package:hive/hive.dart';
-import 'package:isar/isar.dart' as isar;
-import 'package:objectbox/objectbox.dart';
+import 'package:core/model.dart';
+import 'package:isar/isar.dart';
 
 part 'model.g.dart';
 
-abstract class EntityWithSettableId {
-  int get id;
-  set id(int value);
-}
-
-abstract class TestEntity extends EntityWithSettableId {
-  String get tString;
-
-  int get tInt; // 32-bit
-
-  int get tLong; // 64-bit
-  set tLong(int value);
-
-  double get tDouble;
-
-  static Map<String, dynamic> toMap(TestEntity object) => <String, dynamic>{
-        'id': object.id == 0 ? null : object.id,
-        'tString': object.tString,
-        'tInt': object.tInt,
-        'tLong': object.tLong,
-        'tDouble': object.tDouble
-      };
-}
-
-@Entity()
-@HiveType(typeId: 1)
-@isar.Collection()
+@Collection()
 class TestEntityPlain implements TestEntity {
-  @HiveField(0)
   int id;
 
-  @HiveField(1)
   String tString;
 
-  @Property(type: PropertyType.int)
-  @HiveField(2)
   int tInt; // 32-bit
 
-  @HiveField(3)
   int tLong; // 64-bit
 
-  @HiveField(4)
   double tDouble;
 
   TestEntityPlain(this.id, this.tString, this.tInt, this.tLong, this.tDouble);
@@ -69,28 +36,18 @@ class TestEntityPlain implements TestEntity {
 }
 
 // A separate entity for queried data so that indexes don't change CRUD results.
-@Entity()
-@HiveType(typeId: 2)
-@isar.Collection()
+@Collection()
 class TestEntityIndexed implements TestEntity {
-  @HiveField(0)
   int id;
 
-  @Index()
-  @HiveField(1)
-  @isar.Index(indexType: isar.IndexType.value)
+  @Index(type: IndexType.value)
   String tString;
 
   @Index()
-  @Property(type: PropertyType.int)
-  @HiveField(2)
-  @isar.Index()
   int tInt; // 32-bit
 
-  @HiveField(3)
   int tLong; // 64-bit
 
-  @HiveField(4)
   double tDouble;
 
   TestEntityIndexed(this.id, this.tString, this.tInt, this.tLong, this.tDouble);
@@ -107,61 +64,27 @@ class TestEntityIndexed implements TestEntity {
           map['tLong'], map['tDouble']);
 }
 
-abstract class RelSourceEntity extends EntityWithSettableId {
-  int get id;
-
-  set id(int value);
-
-  String get tString;
-
-  int get tLong;
-
-  // for hive & sqflite
-  int get relTargetId;
-
-  static Map<String, dynamic> toMap(RelSourceEntity object) =>
-      <String, dynamic>{
-        'id': object.id == 0 ? null : object.id,
-        'tString': object.tString,
-        'tLong': object.tLong,
-        'relTargetId': object.relTargetId,
-      };
-}
-
-@Entity()
-@HiveType(typeId: 3)
-@isar.Collection()
+@Collection()
 class RelSourceEntityPlain implements RelSourceEntity {
-  @HiveField(0)
   int id;
 
-  @HiveField(1)
   final String tString;
 
-  @HiveField(2)
   final int tLong; // 64-bit
 
-  @isar.Ignore()
-  final obxRelTarget = ToOne<RelTargetEntity>();
-
-  @Transient()
-  @HiveField(3)
-  @isar.Ignore()
+  @Ignore()
   final int relTargetId;
 
-  final isarRelTarget = isar.IsarLink<RelTargetEntity>();
+  final isarRelTarget = IsarLink<RelTargetEntity>();
 
   // Note: constructor arg types must match with fromMap used by sqflite.
   RelSourceEntityPlain(this.id, this.tString, this.tLong,
-      [this.relTargetId = 0]) {
-    obxRelTarget.targetId = relTargetId;
-  }
+      [this.relTargetId = 0]);
 
   RelSourceEntityPlain.forInsert(
       this.tString, this.tLong, RelTargetEntity? relTarget)
       : id = 0,
         relTargetId = relTarget?.id ?? 0 {
-    obxRelTarget.targetId = relTargetId;
     isarRelTarget.value = relTarget;
   }
 
@@ -176,42 +99,28 @@ class RelSourceEntityPlain implements RelSourceEntity {
           map['id'] ?? 0, map['tString'], map['tLong'], map['relTargetId']);
 }
 
-@Entity()
-@HiveType(typeId: 4)
-@isar.Collection()
+@Collection()
 class RelSourceEntityIndexed implements RelSourceEntity {
-  @HiveField(0)
   int id;
 
-  @Index()
-  @HiveField(1)
-  @isar.Index(indexType: isar.IndexType.value)
+  @Index(type: IndexType.value)
   final String tString;
 
-  @HiveField(2)
   final int tLong; // 64-bit
 
-  @isar.Ignore()
-  final obxRelTarget = ToOne<RelTargetEntity>();
-
-  @Transient()
-  @HiveField(3)
-  @isar.Ignore()
+  @Ignore()
   final int relTargetId;
 
-  final isarRelTarget = isar.IsarLink<RelTargetEntity>();
+  final isarRelTarget = IsarLink<RelTargetEntity>();
 
   // Note: constructor arg types must match with fromMap used by sqflite.
   RelSourceEntityIndexed(this.id, this.tString, this.tLong,
-      [this.relTargetId = 0]) {
-    obxRelTarget.targetId = relTargetId;
-  }
+      [this.relTargetId = 0]) {}
 
   RelSourceEntityIndexed.forInsert(
       this.tString, this.tLong, RelTargetEntity? relTarget)
       : id = 0,
         relTargetId = relTarget?.id ?? 0 {
-    obxRelTarget.targetId = relTargetId;
     isarRelTarget.value = relTarget;
   }
 
@@ -226,16 +135,11 @@ class RelSourceEntityIndexed implements RelSourceEntity {
           map['id'] ?? 0, map['tString'], map['tLong'], map['relTargetId']);
 }
 
-@Entity()
-@HiveType(typeId: 5)
-@isar.Collection()
+@Collection()
 class RelTargetEntity extends EntityWithSettableId {
-  @HiveField(0)
   int id;
 
-  @Index()
-  @HiveField(1)
-  @isar.Index(indexType: isar.IndexType.value)
+  @Index(type: IndexType.value)
   String name;
 
   RelTargetEntity(this.id, this.name);

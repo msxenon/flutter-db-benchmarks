@@ -1,0 +1,177 @@
+{
+  "_note1": "KEEP THIS FILE! Check it into a version control system (VCS) like git.",
+  "_note2": "ObjectBox manages crucial IDs for your object model. See docs for details.",
+  "_note3": "If you have VCS merge conflicts, you must resolve them according to ObjectBox docs.",
+  "entities": [
+    {
+      "id": "1:4849037198254057356",
+      "lastPropertyId": "4:1676851399126395459",
+      "name": "RelSourceEntityIndexed",
+      "properties": [
+        {
+          "id": "1:1103393809639701333",
+          "name": "id",
+          "type": 6,
+          "flags": 1
+        },
+        {
+          "id": "2:5624367568711947277",
+          "name": "tString",
+          "type": 9,
+          "flags": 2048,
+          "indexId": "1:4934719098488167100"
+        },
+        {
+          "id": "3:3574446143678007527",
+          "name": "tLong",
+          "type": 6
+        },
+        {
+          "id": "4:1676851399126395459",
+          "name": "obxRelTargetId",
+          "type": 11,
+          "flags": 520,
+          "indexId": "2:3036870182292917846",
+          "relationTarget": "RelTargetEntity"
+        }
+      ],
+      "relations": []
+    },
+    {
+      "id": "2:325515550234914938",
+      "lastPropertyId": "4:1098077925659606717",
+      "name": "RelSourceEntityPlain",
+      "properties": [
+        {
+          "id": "1:6703060500586093023",
+          "name": "id",
+          "type": 6,
+          "flags": 1
+        },
+        {
+          "id": "2:7444565578356094703",
+          "name": "tString",
+          "type": 9
+        },
+        {
+          "id": "3:5633479904746137974",
+          "name": "tLong",
+          "type": 6
+        },
+        {
+          "id": "4:1098077925659606717",
+          "name": "obxRelTargetId",
+          "type": 11,
+          "flags": 520,
+          "indexId": "3:3951955307330285178",
+          "relationTarget": "RelTargetEntity"
+        }
+      ],
+      "relations": []
+    },
+    {
+      "id": "3:5085806947510716708",
+      "lastPropertyId": "2:4054817447233530374",
+      "name": "RelTargetEntity",
+      "properties": [
+        {
+          "id": "1:6937116670127867435",
+          "name": "id",
+          "type": 6,
+          "flags": 1
+        },
+        {
+          "id": "2:4054817447233530374",
+          "name": "name",
+          "type": 9,
+          "flags": 2048,
+          "indexId": "4:176764735155980404"
+        }
+      ],
+      "relations": []
+    },
+    {
+      "id": "4:2876968537135472679",
+      "lastPropertyId": "5:1154489173268667609",
+      "name": "TestEntityIndexed",
+      "properties": [
+        {
+          "id": "1:3406610363408822087",
+          "name": "id",
+          "type": 6,
+          "flags": 1
+        },
+        {
+          "id": "2:1792367859702606301",
+          "name": "tString",
+          "type": 9,
+          "flags": 2048,
+          "indexId": "5:6264587077686953554"
+        },
+        {
+          "id": "3:2300738793401745566",
+          "name": "tInt",
+          "type": 5,
+          "flags": 8,
+          "indexId": "6:1460934123264788283"
+        },
+        {
+          "id": "4:5053455717316889811",
+          "name": "tLong",
+          "type": 6
+        },
+        {
+          "id": "5:1154489173268667609",
+          "name": "tDouble",
+          "type": 8
+        }
+      ],
+      "relations": []
+    },
+    {
+      "id": "5:854168657245885570",
+      "lastPropertyId": "5:7362716674794168607",
+      "name": "TestEntityPlain",
+      "properties": [
+        {
+          "id": "1:8308341447413744746",
+          "name": "id",
+          "type": 6,
+          "flags": 1
+        },
+        {
+          "id": "2:1370594920114415142",
+          "name": "tString",
+          "type": 9
+        },
+        {
+          "id": "3:7447491834887585465",
+          "name": "tInt",
+          "type": 5
+        },
+        {
+          "id": "4:2350832162910592941",
+          "name": "tLong",
+          "type": 6
+        },
+        {
+          "id": "5:7362716674794168607",
+          "name": "tDouble",
+          "type": 8
+        }
+      ],
+      "relations": []
+    }
+  ],
+  "lastEntityId": "5:854168657245885570",
+  "lastIndexId": "6:1460934123264788283",
+  "lastRelationId": "0:0",
+  "lastSequenceId": "0:0",
+  "modelVersion": 5,
+  "modelVersionParserMinimum": 5,
+  "retiredEntityUids": [],
+  "retiredIndexUids": [],
+  "retiredPropertyUids": [],
+  "retiredRelationUids": [],
+  "version": 1
+}

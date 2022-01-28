@@ -28,13 +28,14 @@ class ExecutorIndexed extends ExecutorBase<TestEntityIndexed> {
   Future<void> close() async => await _store.close();
 
   @override
-  Future<void> insertMany(List<TestEntityIndexed> items) async => tracker.track(
+  Future<void> insertMany(List<TestEntityIndexed> items) async =>
+      tracker.trackAsync(
         'insertMany',
         () async {
           assignIds(items);
           if (useAsync) {
             return await _store.writeTxn(
-              (isar) async => _box.putAllSync(items),
+              (isar) => _box.putAll(items),
             );
           } else {
             return await _store.writeTxnSync(
@@ -46,9 +47,9 @@ class ExecutorIndexed extends ExecutorBase<TestEntityIndexed> {
 
   @override
   Future<void> updateMany(List<TestEntityIndexed> items) =>
-      Future.value(tracker.track('updateMany', () async {
+      Future.value(tracker.trackAsync('updateMany', () async {
         if (useAsync) {
-          await _store.writeTxn((isar) async => _box.putAllSync(items));
+          await _store.writeTxn((isar) => _box.putAll(items));
         } else {
           _store.writeTxnSync((isar) => _box.putAllSync(items));
         }
@@ -56,59 +57,57 @@ class ExecutorIndexed extends ExecutorBase<TestEntityIndexed> {
 
   // Note: get all is not supported in isar (v0.4.0), use get by id.
   @override
-  Future<List<TestEntityIndexed?>> readAll(List<int> optionalIds) =>
-      Future.value(
-          tracker.track('readAll', ()async {
-            if(useAsync){
-              _box.getAllSync(optionalIds)
-            }else{
-              _box.getAllSync(optionalIds)
-            }
-          }));
+  Future<List<TestEntityIndexed?>> readAll(List<int> optionalIds) async =>
+      tracker.trackAsync('readAll', () async {
+        if (useAsync) {
+          return await _box.getAll(optionalIds);
+        } else {
+          return _box.getAllSync(optionalIds);
+        }
+      });
 
   @override
   Future<List<TestEntityIndexed?>> queryById(List<int> ids,
-          [String? benchmarkQualifier]) =>
-      Future.value(tracker.track('queryById' + (benchmarkQualifier ?? ''),
-          () => _box.getAllSync(ids)));
+          [String? benchmarkQualifier]) async =>
+      tracker.trackAsync('queryById' + (benchmarkQualifier ?? ''), () async {
+        if (useAsync) {
+          return await _box.getAll(ids);
+        } else {
+          return _box.getAllSync(ids);
+        }
+      });
 
   @override
-  Future<void> removeMany(List<int> ids) => Future.value(
-        tracker.track('removeMany',
-            () => _store.writeTxnSync((Isar isar) => _box.deleteAllSync(ids))),
-      );
+  Future<void> removeMany(List<int> ids) async =>
+      tracker.trackAsync('removeMany', () async {
+        if (useAsync) {
+          await _store.writeTxn((Isar isar) => _box.deleteAll(ids));
+        } else {
+          _store.writeTxnSync((Isar isar) => _box.deleteAllSync(ids));
+        }
+      });
 
   @override
   Future<List<TestEntityIndexed>> queryStringEquals(List<String> val) async =>
-      Future.value(tracker.track('queryStringEquals', () {
+      tracker.trackAsync('queryStringEquals', () async {
         // Indexed queries must be case insensitive, this prevents comparison.
         // See https://github.com/isar/isar#queries
         assert(!ExecutorBase.caseSensitive);
         late List<TestEntityIndexed> result;
         final length = val.length;
         for (var i = 0; i < length; i++) {
-          result = (_box).where().tStringEqualTo(val[i]).findAllSync();
+          if (useAsync) {
+            result = await _box.where().tStringEqualTo(val[i]).findAll();
+          } else {
+            result = _box.where().tStringEqualTo(val[i]).findAllSync();
+          }
         }
         return result;
-      }));
-//todo
-  // @override
-  // Future<ExecutorBaseRel> createRelBenchmark() => Future.value(indexed
-  //     ? ExecutorRel<RelSourceEntityIndexed>._(tracker, _store)
-  //     : ExecutorRel<RelSourceEntityPlain>._(tracker, _store));
-  //
-  // @override
-  // T generateIndexed(int i) {
-  //   return TestEntityIndexed(0, 'Entity #$i', i, i, i.toDouble()) as T;
-  // }
-  //
-  // @override
-  // T generatePlain(int i) {
-  //   return TestEntityPlain(0, 'Entity #$i', i, i, i.toDouble()) as T;
-  // }
+      });
+
   @override
   Future<ExecutorBaseRel> createRelBenchmark() async =>
-      ExecutorRelIndexed(tracker, _store);
+      ExecutorRelIndexed(tracker, _store, useAsync);
   @override
   TestEntityIndexed generateItem(int i) {
     return TestEntityIndexed(

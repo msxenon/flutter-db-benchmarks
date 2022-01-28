@@ -10,8 +10,9 @@ class ExecutorRelPlain
   final Isar _store;
   final IsarCollection<RelSourceEntityPlain> _box;
   final IsarCollection<RelTargetEntity> _boxTarget;
+  final bool useAsync;
 
-  ExecutorRelPlain(TimeTracker tracker, this._store)
+  ExecutorRelPlain(TimeTracker tracker, this._store, this.useAsync)
       : _box = _store.getCollection('RelSourceEntityPlain'),
         _boxTarget = _store.getCollection('RelTargetEntity'),
         super(tracker);
@@ -25,15 +26,19 @@ class ExecutorRelPlain
   Future<void> insertData(int relSourceCount, int relTargetCount) async {
     final targets = prepareDataTargets(relTargetCount);
     assignIds(targets);
-    _store.writeTxnSync((isar) => _boxTarget.putAllSync(targets));
+    if (useAsync) {
+      await _store.writeTxn((isar) => _boxTarget.putAll(targets));
 
-    final sources = prepareDataSources(relSourceCount, targets);
-    assignIds(sources);
-    _store.writeTxnSync((isar) => _box.putAllSync(sources));
+      final sources = prepareDataSources(relSourceCount, targets);
+      assignIds(sources);
+      await _store.writeTxn((isar) => _box.putAll(sources));
+    } else {
+      _store.writeTxnSync((isar) => _boxTarget.putAllSync(targets));
 
-    // TODO no count() available in isar yet?
-    // assert(_box.length == relSourceCount);
-    // assert(_boxTarget.length == relTargetCount);
+      final sources = prepareDataSources(relSourceCount, targets);
+      assignIds(sources);
+      _store.writeTxnSync((isar) => _box.putAllSync(sources));
+    }
   }
 
   @override

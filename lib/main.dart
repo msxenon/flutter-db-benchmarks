@@ -22,6 +22,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      showPerformanceOverlay: true,
       title: 'DB Benchmark',
       theme: ThemeData(
         // This is the theme of your application.
@@ -72,6 +73,13 @@ class _MyHomePageState extends State<MyHomePage> {
   final _resultsController = TextEditingController(text: '10000');
   late final TimeTracker _tracker = TimeTracker(_xprint);
   final appDir = Completer<Directory>();
+  final List<DbEngine> bakedOperations = List.from([
+    DbEngine.ObjectBox,
+    DbEngine.IsarAsync,
+    DbEngine.IsarSync,
+    DbEngine.Hive
+  ]);
+  var _lastRunningDbEngine = DbEngine.IsarSync;
 
   var _result = '';
   final _resultRows = <MapEntry<String, List<TableRow>>>[];
@@ -99,7 +107,7 @@ class _MyHomePageState extends State<MyHomePage> {
       }
 
       _resultRows.add(MapEntry(
-          '${_db.name}-${_mode.name}-'
+          '${_lastRunningDbEngine.name}-${_mode.name}-'
           'Runs:${_runsController.text}--Obj:${_objectsController.text}'
           '-Indexed:${indexed.toString()}',
           rowsList));
@@ -120,7 +128,7 @@ class _MyHomePageState extends State<MyHomePage> {
     getApplicationDocumentsDirectory().then(appDir.complete);
   }
 
-  Future<ExecutorBase> _createExecutor(Directory dbDir) async {
+  Future<ExecutorBase> _createExecutor(Directory dbDir, DbEngine _db) async {
     switch (_db) {
       case DbEngine.ObjectBox:
         return Future.value(obx.createExecutor(indexed, dbDir, _tracker));
@@ -131,6 +139,8 @@ class _MyHomePageState extends State<MyHomePage> {
         return hive.createExecutor(dbDir, _tracker);
       case DbEngine.IsarSync:
         return isar_sync.createExecutor(indexed, dbDir, _tracker);
+      case DbEngine.IsarAsync:
+        return isar_sync.createExecutor(indexed, dbDir, _tracker, true);
       default:
         throw Exception('Unknown executor');
     }
@@ -143,7 +153,9 @@ class _MyHomePageState extends State<MyHomePage> {
         _state = RunState.stopping;
       });
 
-  void _runBenchmark() async {
+  Future<void> _runBenchmark([DbEngine? dbEngine]) async {
+    _lastRunningDbEngine = dbEngine ?? _db;
+
     setState(() {
       _result = 'Benchmark starting...';
       // _resultRows.clear();
@@ -156,15 +168,15 @@ class _MyHomePageState extends State<MyHomePage> {
 
     ExecutorBase? executor;
     try {
-      if (indexed) {
-        executor = await _createExecutor(dbDir);
-      } else {
-        executor = await _createExecutor(dbDir);
-      }
+      executor = await _createExecutor(dbDir, _lastRunningDbEngine);
+
       await _runBenchmarkOn(executor);
     } finally {
       await executor?.close();
-      if (dbDir.existsSync()) dbDir.deleteSync(recursive: true);
+      if (dbDir.existsSync()) {
+        print('deleting temporary DB directory $dbDir');
+        dbDir.deleteSync(recursive: true);
+      }
     }
   }
 
@@ -393,7 +405,6 @@ class _MyHomePageState extends State<MyHomePage> {
 
   @override
   Widget build(BuildContext context) {
-    print('xx table row ${_resultRows.length}');
     // This method is rerun every time setState is called, for instance as done
     // by the _incrementCounter method above.
     //
@@ -406,97 +417,14 @@ class _MyHomePageState extends State<MyHomePage> {
         // the App.build method, and use it to set our appbar title.
         title: Text(widget.title),
       ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Container(
-            child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Row(children: [
-              Spacer(),
-              DropdownButton(
-                  value: _db,
-                  items: enumDropDownItems(DbEngine.values),
-                  onChanged: (DbEngine? value) =>
-                      configure(value!, _mode, _indexed)),
-              Spacer(),
-              DropdownButton(
-                  value: _mode,
-                  // TODO items: enumDropDownItems(Mode.values),
-                  //      Isar queries can't be evaluated yet because the model
-                  //      doesn't work relations.
-                  // Note: evaluating just stringEquals() isn't an option
-                  //      because it would be heavily optimized by the VM if
-                  //      it's the only function executed and wouldn't be
-                  //      comparable to other databases that execute other
-                  //      benchmarks in the same loop.
-                  items: enumDropDownItems(Mode.values
-                      .where((mode) =>
-                          _db != DbEngine.IsarSync ||
-                          (mode != Mode.Queries && mode != Mode.QueryById))
-                      .toList()),
-                  onChanged: (Mode? value) => configure(_db, value!, _indexed)),
-              Spacer(),
-              Text('Index'),
-              if (_db == DbEngine.Hive)
-                Text(' not available')
-              else
-                Switch(
-                  value: _indexed,
-                  onChanged: (bool value) => configure(_db, _mode, value),
-                  activeTrackColor: Colors.yellow,
-                  activeColor: Colors.orangeAccent,
-                ),
-              Spacer(),
-            ]),
-            Row(children: [
-              Spacer(),
-              Expanded(
-                  child: TextField(
-                keyboardType: TextInputType.number,
-                controller: _runsController,
-                decoration: InputDecoration(
-                  labelText: 'Runs',
-                ),
-              )),
-              if (_mode == Mode.Queries) Spacer(),
-              if (_mode == Mode.Queries)
-                Expanded(
-                    child: TextField(
-                  keyboardType: TextInputType.number,
-                  controller: _operationsController,
-                  decoration: InputDecoration(
-                    labelText: 'Operations',
-                  ),
-                )),
-              if (_mode == Mode.QueryById) Spacer(),
-              if (_mode == Mode.QueryById)
-                Expanded(
-                    child: TextField(
-                  keyboardType: TextInputType.number,
-                  controller: _resultsController,
-                  decoration: InputDecoration(
-                    labelText: 'Results',
-                  ),
-                )),
-              Spacer(),
-              Expanded(
-                  child: TextField(
-                keyboardType: TextInputType.number,
-                controller: _objectsController,
-                decoration: InputDecoration(
-                  labelText: 'Objects',
-                ),
-              )),
-              Spacer(),
-            ]),
-            Spacer(),
-            Text(_result),
-            Spacer(),
-            ListView.separated(
-              reverse: true,
-              shrinkWrap: true,
+      body: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        mainAxisSize: MainAxisSize.max,
+        children: [
+          Expanded(
+            child: ListView.separated(
+              physics: const BouncingScrollPhysics(),
+              // shrinkWrap: true,
               separatorBuilder: (_, __) {
                 return Divider();
               },
@@ -526,24 +454,149 @@ class _MyHomePageState extends State<MyHomePage> {
               },
               itemCount: _resultRows.length,
             ),
+          ),
+          const SizedBox(
+            height: 20,
+          ),
+          SizedBox(
+            height: 50,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('$_lastRunningDbEngine: $_result'),
+                if (_state == RunState.running)
+                  Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 10),
+                      child: CircularProgressIndicator())
+              ],
+            ),
+          ),
+          const SizedBox(
+            height: 20,
+          ),
+          Row(children: [
             Spacer(),
-          ],
-        )),
+            DropdownButton(
+                value: _db,
+                items: enumDropDownItems(DbEngine.values),
+                onChanged: (DbEngine? value) =>
+                    configure(value!, _mode, _indexed)),
+            Spacer(),
+            DropdownButton(
+                value: _mode,
+                // TODO items: enumDropDownItems(Mode.values),
+                //      Isar queries can't be evaluated yet because the model
+                //      doesn't work relations.
+                // Note: evaluating just stringEquals() isn't an option
+                //      because it would be heavily optimized by the VM if
+                //      it's the only function executed and wouldn't be
+                //      comparable to other databases that execute other
+                //      benchmarks in the same loop.
+                items: enumDropDownItems(Mode.values
+                    .where((mode) =>
+                        (_db != DbEngine.IsarSync &&
+                            _db != DbEngine.IsarAsync) ||
+                        (mode != Mode.Queries && mode != Mode.QueryById))
+                    .toList()),
+                onChanged: (Mode? value) => configure(_db, value!, _indexed)),
+            Spacer(),
+            Text('Index'),
+            if (_db == DbEngine.Hive)
+              Text(' not available')
+            else
+              Switch(
+                value: _indexed,
+                onChanged: (bool value) => configure(_db, _mode, value),
+                activeTrackColor: Colors.yellow,
+                activeColor: Colors.orangeAccent,
+              ),
+            Spacer(),
+          ]),
+          Row(children: [
+            Spacer(),
+            Expanded(
+                child: TextField(
+              keyboardType: TextInputType.number,
+              controller: _runsController,
+              decoration: InputDecoration(
+                labelText: 'Runs',
+              ),
+            )),
+            if (_mode == Mode.Queries) Spacer(),
+            if (_mode == Mode.Queries)
+              Expanded(
+                  child: TextField(
+                keyboardType: TextInputType.number,
+                controller: _operationsController,
+                decoration: InputDecoration(
+                  labelText: 'Operations',
+                ),
+              )),
+            if (_mode == Mode.QueryById) Spacer(),
+            if (_mode == Mode.QueryById)
+              Expanded(
+                  child: TextField(
+                keyboardType: TextInputType.number,
+                controller: _resultsController,
+                decoration: InputDecoration(
+                  labelText: 'Results',
+                ),
+              )),
+            Spacer(),
+            Expanded(
+                child: TextField(
+              keyboardType: TextInputType.number,
+              controller: _objectsController,
+              decoration: InputDecoration(
+                labelText: 'Objects',
+              ),
+            )),
+            Spacer(),
+          ]),
+          const SizedBox(
+            height: 10,
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _state == RunState.stopping
+                  ? SizedBox.shrink()
+                  : _state == RunState.running
+                      ? ElevatedButton(
+                          style: ElevatedButton.styleFrom(primary: Colors.red),
+                          onPressed: null, //_stopBenchmark,
+                          child: Text('Stop'),
+                        )
+                      : ElevatedButton(
+                          onPressed: _runBenchmark,
+                          child: Text('Start'),
+                        ),
+              ElevatedButton(
+                onPressed:
+                    _state != RunState.running ? () => _startAll() : null,
+                child: Text('Start All'),
+              ),
+              ElevatedButton(
+                onPressed: _resultRows.isNotEmpty
+                    ? () {
+                        setState(() {
+                          _resultRows.clear();
+                        });
+                      }
+                    : null,
+                child: Text('Reset List'),
+              )
+            ],
+          )
+        ],
       ),
-      floatingActionButton: _state == RunState.stopping
-          ? null
-          : _state == RunState.running
-              ? FloatingActionButton(
-                  onPressed: _stopBenchmark,
-                  tooltip: 'Stop',
-                  child: Icon(Icons.stop),
-                )
-              : FloatingActionButton(
-                  onPressed: _runBenchmark,
-                  tooltip: 'Start',
-                  child: Icon(Icons.play_arrow),
-                ), // This trailing comma makes auto-formatting nicer for build methods.
     );
+  }
+
+  void _startAll() async {
+    for (final db in bakedOperations) {
+      await _runBenchmark(db);
+    }
   }
 }
 

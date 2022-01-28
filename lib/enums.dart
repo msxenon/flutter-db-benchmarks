@@ -1,4 +1,4 @@
-enum DbEngine { ObjectBox, Hive, IsarSync }
+enum DbEngine { ObjectBox, Hive, IsarSync, IsarAsync }
 //sqflite
 enum Mode { CRUD, Queries, QueryById }
 

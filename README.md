@@ -1,6 +1,7 @@
 Note: this repo was based on [ObjectBox Flutter Database Performance Benchmarks
 ](https://github.com/objectbox/objectbox-dart-performance)
 # [Demo Video](https://github.com/msxenon/flutter-db-benchmarks/blob/to_packages/media/demo.mp4)
+![Screenshot](https://github.com/msxenon/flutter-db-benchmarks/blob/to_packages/media/screenshot.png)
 
 ## as a Result 
 1. ISar (Async) was the better choice cuz it's not blocking the UI

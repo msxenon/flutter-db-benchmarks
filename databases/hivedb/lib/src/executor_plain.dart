@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:core/executer.dart';
@@ -29,7 +30,7 @@ class ExecutorPlain extends ExecutorBase<TestEntityPlain> {
   Future<void> close() async => await _box.close();
 
   @override
-  Future<void> insertMany(List<TestEntityPlain> items) =>
+  FutureOr<void> insertMany(List<TestEntityPlain> items) =>
       tracker.trackAsync('insertMany', () async {
         int id = 1;
         final itemsById = <int, TestEntityPlain>{};
@@ -41,34 +42,34 @@ class ExecutorPlain extends ExecutorBase<TestEntityPlain> {
       });
 
   @override
-  Future<void> updateMany(List<TestEntityPlain> items) =>
+  FutureOr<void> updateMany(List<TestEntityPlain> items) =>
       Future.value(tracker.trackAsync('updateMany',
           () async => await _box.putAll({for (var o in items) o.id: o})));
 
   // Note: get all is not supported in isar (v0.4.0), use get by id.
   @override
-  Future<List<TestEntityPlain?>> readAll(List<int> optionalIds) =>
-      Future.value(tracker.track('readAll', () => _box.values.toList()));
+  FutureOr<List<TestEntityPlain?>> readAll(List<int> optionalIds) =>
+      tracker.track('readAll', () => _box.values.toList());
 
   @override
-  Future<List<TestEntityPlain?>> queryById(List<int> ids,
+  FutureOr<List<TestEntityPlain?>> queryById(List<int> ids,
           [String? benchmarkQualifier]) =>
-      Future.value(tracker.track('queryById' + (benchmarkQualifier ?? ''),
-          () => ids.map(_box.get).toList()));
+      tracker.track('queryById' + (benchmarkQualifier ?? ''),
+          () => ids.map(_box.get).toList());
 
   @override
-  Future<void> removeMany(List<int> ids) async =>
+  FutureOr<void> removeMany(List<int> ids) async =>
       tracker.trackAsync('removeMany', () async {
         await _box.deleteAll(ids);
         await _box.compact();
       });
 
   @override
-  Future<List<TestEntityPlain>> queryStringEquals(List<String> val) async {
+  FutureOr<List<TestEntityPlain>> queryStringEquals(List<String> val) {
     if (!ExecutorBase.caseSensitive) {
       val = val.map((e) => e.toLowerCase()).toList(growable: false);
     }
-    return Future.value(tracker.track('queryStringEquals', () {
+    return tracker.track('queryStringEquals', () {
       late List<TestEntityPlain> result;
       final length = val.length;
       for (var i = 0; i < length; i++) {
@@ -79,7 +80,7 @@ class ExecutorPlain extends ExecutorBase<TestEntityPlain> {
             .toList();
       }
       return result;
-    }));
+    });
   }
 
   @override

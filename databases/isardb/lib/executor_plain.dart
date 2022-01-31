@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:core/executer.dart';
@@ -28,96 +29,99 @@ class ExecutorPlain extends ExecutorBase<TestEntityPlain> {
         useAsync);
   }
 
-  @override
-  Future<void> close() async => await _store.close();
+  // @override
+  // Future<void> close() => _store.close();
 
   @override
-  Future<void> insertMany(List<TestEntityPlain> items) async =>
-      tracker.trackAsync(
-        'insertMany',
-        () async {
-          assignIds(items);
-          if (useAsync) {
-            return await _store.writeTxn(
+  FutureOr<void> insertMany(List<TestEntityPlain> items) => useAsync
+      ? tracker.trackAsync(
+          'insertMany',
+          () {
+            assignIds(items);
+            return _store.writeTxn(
               (isar) => _box.putAll(items),
             );
-          } else {
-            return _store.writeTxnSync(
-              (isar) => _box.putAllSync(items),
-            );
-          }
-        },
-      );
+          },
+        )
+      : tracker.track('insertMany', () {
+          assignIds(items);
+
+          return _store.writeTxnSync(
+            (isar) => _box.putAllSync(items),
+          );
+        });
 
   @override
-  Future<void> updateMany(List<TestEntityPlain> items) =>
-      tracker.trackAsync('updateMany', () async {
-        if (useAsync) {
-          await _store.writeTxn((isar) => _box.putAll(items));
-        } else {
+  FutureOr<void> updateMany(List<TestEntityPlain> items) => useAsync
+      ? tracker.trackAsync('updateMany', () {
+          return _store.writeTxn((isar) => _box.putAll(items));
+        })
+      : tracker.track('updateMany', () {
           _store.writeTxnSync((isar) => _box.putAllSync(items));
-        }
-      });
+        });
 
   // Note: get all is not supported in isar (v0.4.0), use get by id.
   @override
-  Future<List<TestEntityPlain?>> readAll(List<int> optionalIds) =>
-      tracker.trackAsync('readAll', () async {
-        if (useAsync) {
-          return await _box.getAll(optionalIds);
-        } else {
+  FutureOr<List<TestEntityPlain?>> readAll(List<int> optionalIds) => useAsync
+      ? tracker.trackAsync('readAll', () {
+          return _box.getAll(optionalIds);
+        })
+      : tracker.track('readAll', () {
           return _box.getAllSync(optionalIds);
-        }
-      });
+        });
 
   @override
-  Future<List<TestEntityPlain?>> queryById(List<int> ids,
+  FutureOr<List<TestEntityPlain?>> queryById(List<int> ids,
           [String? benchmarkQualifier]) =>
-      tracker.trackAsync('queryById' + (benchmarkQualifier ?? ''), () async {
-        if (useAsync) {
-          return await _box.getAll(ids);
-        } else {
-          return _box.getAllSync(ids);
-        }
-      });
+      useAsync
+          ? tracker.trackAsync('queryById' + (benchmarkQualifier ?? ''), () {
+              return _box.getAll(ids);
+            })
+          : tracker.track('queryById' + (benchmarkQualifier ?? ''), () {
+              return _box.getAllSync(ids);
+            });
 
   @override
-  Future<void> removeMany(List<int> ids) =>
-      tracker.trackAsync('removeMany', () async {
-        if (useAsync) {
-          await _store.writeTxn((Isar isar) => _box.deleteAll(ids));
-        } else {
+  FutureOr<void> removeMany(List<int> ids) => useAsync
+      ? tracker.trackAsync('removeMany', () {
+          return _store.writeTxn((Isar isar) => _box.deleteAll(ids));
+        })
+      : tracker.track('removeMany', () {
           _store.writeTxnSync((Isar isar) => _box.deleteAllSync(ids));
-        }
-      });
+        });
 
   @override
-  Future<List<TestEntityPlain>> queryStringEquals(List<String> val) async =>
-      tracker.trackAsync('queryStringEquals', () async {
-        late List<TestEntityPlain> result;
-        final length = val.length;
-        for (var i = 0; i < length; i++) {
-          if (useAsync) {
-            result = await (_box)
-                .where()
-                .filter()
-                .tStringEqualTo(val[i],
-                    caseSensitive: ExecutorBase.caseSensitive)
-                .findAll();
-          } else {
-            result = (_box)
-                .where()
-                .filter()
-                .tStringEqualTo(val[i],
-                    caseSensitive: ExecutorBase.caseSensitive)
-                .findAllSync();
-          }
-        }
-        return result;
-      });
+  FutureOr<List<TestEntityPlain>> queryStringEquals(List<String> val) =>
+      useAsync
+          ? tracker.trackAsync('queryStringEquals', () async {
+              late List<TestEntityPlain> result;
+              final length = val.length;
+              for (var i = 0; i < length; i++) {
+                result = await (_box)
+                    .where()
+                    .filter()
+                    .tStringEqualTo(val[i],
+                        caseSensitive: ExecutorBase.caseSensitive)
+                    .findAll();
+              }
+              return result;
+            })
+          : tracker.track('queryStringEquals', () {
+              late List<TestEntityPlain> result;
+              final length = val.length;
+              for (var i = 0; i < length; i++) {
+                result = (_box)
+                    .where()
+                    .filter()
+                    .tStringEqualTo(val[i],
+                        caseSensitive: ExecutorBase.caseSensitive)
+                    .findAllSync();
+              }
+              return result;
+            });
 
   @override
-  Future<ExecutorBaseRel> createRelBenchmark() async =>
+  FutureOr<ExecutorBaseRel> createRelBenchmark() =>
       ExecutorRelPlain(tracker, _store, useAsync);
   @override
   TestEntityPlain generateItem(int i) {
@@ -128,5 +132,10 @@ class ExecutorPlain extends ExecutorBase<TestEntityPlain> {
       i,
       i.toDouble(),
     );
+  }
+
+  @override
+  Future<void> close() async {
+    return;
   }
 }

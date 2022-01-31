@@ -75,7 +75,7 @@ class _MyHomePageState extends State<MyHomePage> {
   final appDir = Completer<Directory>();
   final List<DbEngine> bakedOperations = List.from([
     DbEngine.ObjectBox,
-    DbEngine.IsarAsync,
+    // DbEngine.IsarAsync,
     DbEngine.IsarSync,
     DbEngine.Hive
   ]);
@@ -129,6 +129,8 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   Future<ExecutorBase> _createExecutor(Directory dbDir, DbEngine _db) async {
+    print('_createExecutor for $_lastRunningDbEngine');
+
     switch (_db) {
       case DbEngine.ObjectBox:
         return Future.value(obx.createExecutor(indexed, dbDir, _tracker));
@@ -163,7 +165,7 @@ class _MyHomePageState extends State<MyHomePage> {
     });
 
     final dbDir = (await appDir.future).createTempSync();
-    print('Using temporary DB directory $dbDir');
+    print('Using temporary DB directory $dbDir for $_lastRunningDbEngine');
     dbDir.createSync(recursive: true);
 
     ExecutorBase? executor;
@@ -171,10 +173,13 @@ class _MyHomePageState extends State<MyHomePage> {
       executor = await _createExecutor(dbDir, _lastRunningDbEngine);
 
       await _runBenchmarkOn(executor);
+    } catch (e, s) {
+      print('$e $s');
     } finally {
       await executor?.close();
       if (dbDir.existsSync()) {
-        print('deleting temporary DB directory $dbDir');
+        print(
+            'deleting temporary DB directory $dbDir for $_lastRunningDbEngine');
         dbDir.deleteSync(recursive: true);
       }
     }
@@ -187,16 +192,16 @@ class _MyHomePageState extends State<MyHomePage> {
 
   /// Waits for the given future to complete. Returns true if the benchmark
   /// should continue or false if it was stopped by the user in the meantime.
-  Future<bool> awaitOrStop(Future future) async {
-    await Future.any([
-      future,
-      Future.microtask(() async {
-        while (_state == RunState.running) {
-          await Future.delayed(const Duration(milliseconds: 10));
-        }
-        return Future.value();
-      })
-    ]);
+  FutureOr<bool> awaitOrStop(FutureOr future) async {
+    // await Future.any([
+    await future;
+    // Future.microtask(() async {
+    //   while (_state == RunState.running) {
+    //     await Future.delayed(const Duration(milliseconds: 10));
+    //   }
+    //   return Future.value();
+    //   })
+    // ]);
     return Future.value(_state == RunState.running);
   }
 
@@ -596,6 +601,7 @@ class _MyHomePageState extends State<MyHomePage> {
   void _startAll() async {
     for (final db in bakedOperations) {
       await _runBenchmark(db);
+      await Future.delayed(const Duration(milliseconds: 500));
     }
   }
 }

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:core/executer.dart';
 import 'package:core/time_tracker.dart';
 import 'package:core/utils.dart';
@@ -23,7 +25,7 @@ class ExecutorRelPlain
   }
 
   @override
-  Future<void> insertData(int relSourceCount, int relTargetCount) async {
+  FutureOr<void> insertData(int relSourceCount, int relTargetCount) async {
     final targets = prepareDataTargets(relTargetCount);
     assignIds(targets);
     if (useAsync) {
@@ -42,7 +44,7 @@ class ExecutorRelPlain
   }
 
   @override
-  Future<List<RelSourceEntityPlain>> queryWithLinks(
+  FutureOr<List<RelSourceEntityPlain>> queryWithLinks(
       List<ConfigQueryWithLinks> args) {
     // TODO implement once the model is properly generated
     // see https://isar.dev/queries#links

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'model.dart';
@@ -22,8 +23,7 @@ abstract class ExecutorBase<T extends TestEntity> {
   Future<void> close();
 
   T generateItem(int i);
-//    ? TestEntityIndexed(0, 'Entity #$i', i, i, i.toDouble()) as T
-//           : TestEntityPlain(0, 'Entity #$i', i, i, i.toDouble()) as T,
+
   List<T> prepareData(int count) =>
       List.generate(count, (i) => generateItem(i), growable: false);
 
@@ -34,21 +34,21 @@ abstract class ExecutorBase<T extends TestEntity> {
 
   /// If available should use a read all function,
   /// otherwise use the ID list to look up all items.
-  Future<List<T?>> readAll(List<int> optionalIds) => throw UnimplementedError();
-
-  Future<void> insertMany(List<T> items);
-
-  Future<void> updateMany(List<T> items);
-
-  Future<List<T?>> queryById(List<int> ids, [String? benchmarkQualifier]);
-
-  Future<void> removeMany(List<int> ids);
-
-  Future<List<T>> queryStringEquals(List<String> val) =>
+  FutureOr<List<T?>> readAll(List<int> optionalIds) =>
       throw UnimplementedError();
 
+  FutureOr<void> insertMany(List<T> items);
+
+  FutureOr<void> updateMany(List<T> items);
+
+  FutureOr<List<T?>> queryById(List<int> ids, [String? benchmarkQualifier]);
+
+  FutureOr<void> removeMany(List<int> ids);
+
+  FutureOr<List<T>> queryStringEquals(List<String> val);
+
   /// Verifies that the executor works as expected (returns proper results).
-  Future<void> test({required int count, String? qString}) =>
+  FutureOr<void> test({required int count, String? qString}) =>
       Future.sync(() async {
         final checkCount = (String message, Iterable list, int count) =>
             RangeError.checkValueInInterval(list.length, count, count, message);
@@ -79,7 +79,7 @@ abstract class ExecutorBase<T extends TestEntity> {
             (await queryById(ids)).where((e) => e != null), 0);
       });
 
-  Future<ExecutorBaseRel> createRelBenchmark() => throw UnimplementedError();
+  FutureOr<ExecutorBaseRel> createRelBenchmark();
 }
 
 /// Benchmark executor base class for relations tests
@@ -118,14 +118,11 @@ abstract class ExecutorBaseRel<T extends RelSourceEntity,
         return generateItem(string, i % 2, target);
       }, growable: false);
 
-  List<S> prepareDataTargets(int count) => List.generate(
-      count,
-      (i) =>
-          generateTarget(0, 'Target #$i'), // RelTargetEntity(0, 'Target #$i'),
-      growable: false);
+  List<S> prepareDataTargets(int count) =>
+      List.generate(count, (i) => generateTarget(0, 'Target #$i'),
+          growable: false);
   S generateTarget(int id, String name);
-  Future<void> insertData(int relSourceCount, int relTargetCount);
+  FutureOr<void> insertData(int relSourceCount, int relTargetCount);
 
-  Future<List<T>> queryWithLinks(List<ConfigQueryWithLinks> args) =>
-      throw UnimplementedError();
+  FutureOr<List<T>> queryWithLinks(List<ConfigQueryWithLinks> args);
 }

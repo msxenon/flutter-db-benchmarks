@@ -10,8 +10,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  isar: ^2.0.0
-  isar_flutter_libs: ^2.0.0
+  isar: ^2.1.0
+  isar_flutter_libs: ^2.1.0
   path: ^1.8.0
   path_provider: ^2.0.8
   core:
@@ -20,7 +20,7 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^1.0.4
-  isar_generator: ^2.0.0
+  isar_generator: ^2.1.0
   build_runner: any
 
 
